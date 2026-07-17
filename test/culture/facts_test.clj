@@ -1,0 +1,38 @@
+(ns culture.facts-test
+  (:require [clojure.edn :as edn]
+            [clojure.string :as str]
+            [clojure.test :refer [deftest is]]
+            [culture.facts :as facts]))
+
+(deftest new-orleans-has-culture-basis
+  (let [sb (facts/spec-basis "new-orleans")]
+    (is (= 9 (count sb)))
+    (is (= (count sb) (count (set (map :culture/id sb)))))
+    (is (every? #(str/starts-with? (:culture/url %) "https://") sb))
+    (is (every? #(= "new-orleans" (:culture/municipality %)) sb))
+    (is (every? #(= "USA" (:culture/country %)) sb))
+    (is (every? #(seq (:culture/summary %)) sb))
+    (is (every? #(string? (:culture/retrieved-at %)) sb))))
+
+(deftest unknown-municipality-has-no-basis
+  (is (nil? (facts/spec-basis "baton-rouge")))
+  (is (nil? (facts/spec-basis "zzz"))))
+
+(deftest coverage-is-honest
+  (let [c (facts/coverage ["new-orleans" "baton-rouge"])]
+    (is (= 2 (:requested c)))
+    (is (= 1 (:covered c)))
+    (is (= ["baton-rouge"] (:missing-municipalities c)))))
+
+(deftest by-kind-filters
+  (is (= 5 (count (facts/by-kind "new-orleans" :dish))))
+  (is (= ["new-orleans.beverage.sazerac"]
+         (mapv :culture/id (facts/by-kind "new-orleans" :beverage))))
+  (is (= 2 (count (facts/by-kind "new-orleans" :festival))))
+  (is (empty? (facts/by-kind "new-orleans" :craft)))
+  (is (empty? (facts/by-kind "baton-rouge" :dish))))
+
+(deftest tx-file-matches-catalog
+  (let [tx (edn/read-string (slurp "data/culture-tx.edn"))
+        flat (mapcat val (sort-by key facts/catalog))]
+    (is (= (vec flat) (vec tx)))))

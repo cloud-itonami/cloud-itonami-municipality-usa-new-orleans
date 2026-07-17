@@ -1,0 +1,31 @@
+(ns ordinance.facts-test
+  (:require [clojure.edn :as edn]
+            [clojure.string :as str]
+            [clojure.test :refer [deftest is]]
+            [ordinance.facts :as facts]))
+
+(deftest new-orleans-has-spec-basis
+  (let [sb (facts/spec-basis "new-orleans")]
+    (is (= 2 (count sb)))
+    (is (every? #(str/starts-with? (:ordinance/url %) "https://czo.nola.gov/") sb))))
+
+(deftest unknown-municipality-has-no-spec-basis
+  (is (nil? (facts/spec-basis "baton-rouge")))
+  (is (nil? (facts/spec-basis "zzz"))))
+
+(deftest coverage-is-honest
+  (let [c (facts/coverage ["new-orleans" "baton-rouge"])]
+    (is (= 2 (:requested c)))
+    (is (= 1 (:covered c)))
+    (is (= ["baton-rouge"] (:missing-municipalities c)))))
+
+(deftest by-topic-filters
+  (is (= ["new-orleans.commercial-str-interim-zoning-district-2023"]
+         (mapv :ordinance/id (facts/by-topic "new-orleans" :tourism))))
+  (is (empty? (facts/by-topic "new-orleans" :labor)))
+  (is (empty? (facts/by-topic "baton-rouge" :zoning))))
+
+(deftest tx-file-matches-catalog
+  (let [tx (edn/read-string (slurp "data/datascript-tx.edn"))
+        flat (mapcat val (sort-by key facts/catalog))]
+    (is (= (vec flat) (vec tx)))))
